@@ -1,8 +1,12 @@
 import json
 import random
 from datetime import datetime
+from pathlib import Path
 from book import Book
 from member import Member
+
+
+DATA_DIR = Path(__file__).resolve().parent
 
 
 class Library:
@@ -107,12 +111,12 @@ class Library:
         for book in self.books:
             books_data.append(book.to_dict())
 
-        with open("database.json", "w") as file:
+        with open(DATA_DIR / "database.json", "w") as file:
             json.dump(books_data, file, indent=4)
 
     def load_books(self):
         try:
-            with open("database.json", "r") as file:
+            with open(DATA_DIR / "database.json", "r") as file:
                 books_data = json.load(file)
 
             for data in books_data:
@@ -123,7 +127,10 @@ class Library:
                     data["category"]
                 )
 
-                book.available = data.get("available", True)
+                book.available = data.get(
+                    "available",
+                    data.get("availability", True)
+                )
                 book.issued_to = data.get("issued_to", None)
                 book.issue_date = data.get("issue_date", None)
 
@@ -332,19 +339,19 @@ class Library:
         for member in self.members:
             members_data.append(member.to_dict())
 
-        with open("members.json", "w") as file:
+        with open(DATA_DIR / "members.json", "w") as file:
             json.dump(members_data, file, indent=4)
 
     def load_members(self):
         try:
-            with open("members.json", "r") as file:
+            with open(DATA_DIR / "members.json", "r") as file:
                 members_data = json.load(file)
 
             for data in members_data:
                 member = Member(
                     data["member_id"],
                     data["name"],
-                    data["phone"]
+                    data.get("phone", data.get("email", ""))
                 )
 
                 self.members.append(member)
@@ -535,17 +542,21 @@ class Library:
         print(f"Days Kept: {days_kept} days")
         print(f"Fine Amount: {fine_amount} Tk")
 
+    def _load_transactions(self):
+        try:
+            with open(DATA_DIR / "transactions.json", "r") as file:
+                data = json.load(file)
+                return data if isinstance(data, list) else []
+        except (FileNotFoundError, json.JSONDecodeError):
+            return []
+
     def save_transaction(self,member_id,book_id,action,fine=0):
 
         if member_id is None or book_id is None:
             print("Member ID and Book ID cannot be empty.")
             return
 
-        try:
-            with open("transactions.json", "r") as file:
-                transactions = json.load(file)
-        except(FileNotFoundError, json.JSONDecodeError):
-            transactions = []
+        transactions = self._load_transactions()
 
         transaction = {
             "transaction_id": str(random.randint(100000, 999999)),
@@ -557,7 +568,7 @@ class Library:
         }
         transactions.append(transaction)
 
-        with open("transactions.json", "w") as file:
+        with open(DATA_DIR / "transactions.json", "w") as file:
             json.dump(transactions, file,indent=4)
 
         print("\nTransaction saved successfully!")
@@ -567,7 +578,7 @@ class Library:
         print("\n===== All Transactions =====")
 
         try:
-            with open("transactions.json", "r") as file:
+            with open(DATA_DIR / "transactions.json", "r") as file:
                 transactions = json.load(file)
 
         except (FileNotFoundError, json.JSONDecodeError):
@@ -584,7 +595,7 @@ class Library:
             print(f"Member ID     : {transaction['member_id']}")
             print(f"Book ID       : {transaction['book_id']}")
             print(f"Action        : {transaction['action']}")
-            print(f"Fine          : ${transaction['fine']})")
+            print(f"Fine          : {transaction['fine']} Tk")
             print(f"Date          : {transaction['date']}")
            
 
@@ -605,7 +616,7 @@ class Library:
             return
 
         try:
-            with open("transactions.json", "r") as file:
+            with open(DATA_DIR / "transactions.json", "r") as file:
                 transactions = json.load(file)
 
         except (FileNotFoundError, json.JSONDecodeError):
@@ -622,7 +633,7 @@ class Library:
                 print(f"Transaction ID: {transaction['transaction_id']}")
                 print(f"Book ID       : {transaction['book_id']}")
                 print(f"Action        : {transaction['action']}")
-                print(f"Fine          : ${transaction['fine']})")
+                print(f"Fine          : {transaction['fine']} Tk")
                 print(f"Date          : {transaction['date']}")
 
                 found=True
@@ -648,7 +659,7 @@ class Library:
             return
 
         try:
-            with open("transactions.json", "r") as file:
+            with open(DATA_DIR / "transactions.json", "r") as file:
                 transactions = json.load(file)
 
         except (FileNotFoundError, json.JSONDecodeError):
@@ -782,22 +793,13 @@ class Library:
 
     def popularity_report(self):
         print("\n===== Library Popularity Report =====")
+        transactions = self._load_transactions()
+        issued_transactions = [
+            transaction for transaction in transactions
+            if transaction.get("action") == "Issued"
+        ]
 
-        try:
-            with open("transactions.json", "r") as file:
-                transactions = json.load(file)
-
-        except (FileNotFoundError, json.JSONDecodeError):
-            print("No transaction history found.")
-            return
-
-        issued_transactions = []
-
-        for transaction in transactions:
-            if transaction["action"] == "Issued":
-                issued_transactions.append(transaction)
-
-        if len(issued_transactions) == 0:
+        if not issued_transactions:
             print("No borrowing data available.")
             return
 
@@ -807,119 +809,72 @@ class Library:
         category_count = {}
 
         for transaction in issued_transactions:
-
-            book_id = transaction["book_id"]
-            member_id = transaction["member_id"]
-
+            book_id = transaction.get("book_id")
+            member_id = transaction.get("member_id")
             book_count[book_id] = book_count.get(book_id, 0) + 1
             member_count[member_id] = member_count.get(member_id, 0) + 1
 
-        for book in self.books:
-
-            if book.book_id == book_id:
-
-                author = book.author
-                category = book.category
-
-                author_count[author] = (
-                    author_count.get(author, 0) + 1
-                )
-
-                category_count[category] = (
-                    category_count.get(category, 0) + 1
-                )
-
-                break
-
-            print("\n===== Most Borrowed Book =====")
-
-            most_borrowed_book_id = max(
-                book_count,
-                key=book_count.get
+            book = next(
+                (item for item in self.books if item.book_id == book_id),
+                None
             )
+            if book:
+                author_count[book.author] = author_count.get(book.author, 0) + 1
+                category_count[book.category] = category_count.get(book.category, 0) + 1
 
-            most_borrowed_book = None
-
-        for book in self.books:
-            if book.book_id == most_borrowed_book_id:
-                most_borrowed_book = book
-                break
-
-        if most_borrowed_book:
-            print(f"Book     : {most_borrowed_book.title}")
-            print(f"Borrowed : {book_count[most_borrowed_book_id]} times")
-
-        print("\n===== Most Borrowed Author =====")
-
-        most_borrowed_author = max(
-            author_count,
-            key=author_count.get
+        most_borrowed_book_id = max(book_count, key=book_count.get)
+        most_borrowed_book = next(
+            (book for book in self.books if book.book_id == most_borrowed_book_id),
+            None
         )
+        print("\n===== Most Borrowed Book =====")
+        print(f"Book     : {most_borrowed_book.title if most_borrowed_book else most_borrowed_book_id}")
+        print(f"Borrowed : {book_count[most_borrowed_book_id]} times")
 
-        print(f"Author   : {most_borrowed_author}")
-        print(f"Borrowed : {author_count[most_borrowed_author]} times")
+        if author_count:
+            most_borrowed_author = max(author_count, key=author_count.get)
+            print("\n===== Most Borrowed Author =====")
+            print(f"Author   : {most_borrowed_author}")
+            print(f"Borrowed : {author_count[most_borrowed_author]} times")
 
-        print("\n===== Most Popular Category =====")
+        if category_count:
+            popular_category = max(category_count, key=category_count.get)
+            print("\n===== Most Popular Category =====")
+            print(f"Category : {popular_category}")
+            print(f"Borrowed : {category_count[popular_category]} times")
 
-        popular_category = max(
-                category_count,
-                key=category_count.get
+        most_active_member_id = max(member_count, key=member_count.get)
+        member = next(
+            (item for item in self.members if item.member_id == most_active_member_id),
+            None
         )
-
-        print(f"Category : {popular_category}")
-        print(f"Borrowed : {category_count[popular_category]} times")
-
         print("\n===== Most Active Member =====")
-
-        most_active_member_id = max(
-                member_count,
-                key=member_count.get
-        )
-
-        member_name = "Unknown"
-
-        for member in self.members:
-
-            if member.member_id == most_active_member_id:
-                member_name = member.name
-                break
-
-        print(f"Member   : {member_name}")
+        print(f"Member   : {member.name if member else 'Unknown'}")
         print(f"Borrowed : {member_count[most_active_member_id]} times")
 
-
-        def overdue_books(self):
-            print("\n===== Overdue Books =====")
-
+    def overdue_books(self):
+        print("\n===== Overdue Books =====")
         today = datetime.now()
-        allowed_days = 14
         found = False
 
         for book in self.books:
+            if book.available or not book.issue_date:
+                continue
 
-            if not book.available and book.issue_date:
+            issue_date = datetime.strptime(book.issue_date, "%Y-%m-%d")
+            days_kept = (today - issue_date).days
+            if days_kept <= 14:
+                continue
 
-                issue_date = datetime.strptime(
-                    book.issue_date,
-                    "%Y-%m-%d"
-                )
-
-                days_kept = (today - issue_date).days
-
-                if days_kept > allowed_days:
-
-                    late_days = days_kept - allowed_days
-                    fine = late_days * 5
-
-                    print("\n------------------------")
-                    print(f"Book ID      : {book.book_id}")
-                    print(f"Book Title   : {book.title}")
-                    print(f"Issued To    : {book.issued_to}")
-                    print(f"Days Kept    : {days_kept} days")
-                    print(f"Late Days    : {late_days} days")
-                    print(f"Current Fine : {fine} Tk")
-
-                    found = True
+            late_days = days_kept - 14
+            print("\n------------------------")
+            print(f"Book ID      : {book.book_id}")
+            print(f"Book Title   : {book.title}")
+            print(f"Issued To    : {book.issued_to}")
+            print(f"Days Kept    : {days_kept} days")
+            print(f"Late Days    : {late_days} days")
+            print(f"Current Fine : {late_days * 5} Tk")
+            found = True
 
         if not found:
             print("No overdue books found.")
@@ -930,123 +885,57 @@ class Library:
 
 
     def dashboard(self):
-       print("\n"+"="*45)
-       print("\n===== Library Dashboard =====")
-       print("="*45)
+        print("\n" + "=" * 45)
+        print("\n===== Library Dashboard =====")
+        print("=" * 45)
 
-       total_books = len(self.books)
-       total_members = len(self.members)
+        transactions = self._load_transactions()
+        available_books = sum(book.available for book in self.books)
+        issued_books = len(self.books) - available_books
+        overdue_count = 0
+        today = datetime.now()
 
-       available_books = 0
-       issued_books = 0
+        for book in self.books:
+            if not book.available and book.issue_date:
+                issue_date = datetime.strptime(book.issue_date, "%Y-%m-%d")
+                if (today - issue_date).days > 14:
+                    overdue_count += 1
 
-       for book in self.books:
-        if book.available:
-            available_books += 1
-        else:
-            issued_books += 1
+        book_counts = {}
+        category_counts = {}
+        author_counts = {}
+        for transaction in transactions:
+            if transaction.get("action") != "Issued":
+                continue
+            book_id = transaction.get("book_id")
+            book_counts[book_id] = book_counts.get(book_id, 0) + 1
+            book = next((item for item in self.books if item.book_id == book_id), None)
+            if book:
+                category_counts[book.category] = category_counts.get(book.category, 0) + 1
+                author_counts[book.author] = author_counts.get(book.author, 0) + 1
 
+        most_borrowed_book = "N/A"
+        if book_counts:
+            book_id = max(book_counts, key=book_counts.get)
+            book = next((item for item in self.books if item.book_id == book_id), None)
+            most_borrowed_book = book.title if book else book_id
 
+        popular_category = max(category_counts, key=category_counts.get) if category_counts else "N/A"
+        popular_author = max(author_counts, key=author_counts.get) if author_counts else "N/A"
+        total_fine = sum(transaction.get("fine", 0) for transaction in transactions)
 
-        try:
-            with open("transactions.json", "r") as file:
-                transactions = json.load(file)
-
-        except (FileNotFoundError, json.JSONDecodeError):
-            transactions = []
-
-            total_transactions = len(transactions)
-
-            total_fine = 0
-
-            for transaction in transactions:
-                total_fine += transaction.get("fine", 0)
-
-            overdue_counts = 0
-            today = datetime.now()
-
-            for book in self.books:
-                if not book.available and book.issue_date:
-                    issue_date = datetime.strptime(book.issue_date, "%Y-%m-%d")
-                    days_kept = (today - issue_date).days
-                    allowed_days = 14
-
-                    if days_kept > allowed_days:
-                        overdue_counts += 1
-
-            books_count = {}
-            category_count = {}
-            author_count = {}
-
-            for transaction in transactions:
-                if transaction["action"] == "Issued":
-                    book_id = transaction["book_id"]
-
-                    books_count[book_id] = books_count.get(book_id, 0) + 1
-
-                    for book in self.books:
-                        if book.book_id == book_id:
-                            category = book.category
-                            author = book.author
-
-                            category_count[category] = (
-                                category_count.get(category, 0) + 1
-                            )
-
-                            author_count[author] = (
-                                author_count.get(author, 0) + 1
-                            )
-
-                            break
-
-            most_borrowed_book = "N/A"
-
-            if books_count:
-                most_borrowed_book_id = max(
-                    books_count,
-                    key=books_count.get
-                )
-
-                for book in self.books:
-                    if book.book_id == most_borrowed_book_id:
-                        most_borrowed_book = book.title
-                        break
-
-            popular_category = "N/A"
-            if category_count:
-                popular_category = max(
-                    category_count,
-                    key=category_count.get
-                )
-
-            popular_author = "N/A"
-            if author_count:
-                popular_author = max(
-                    author_count,
-                    key=author_count.get
-                )
-
-            print(f"\nTotal Books          : {total_books}")
-            print(f"Available Books      : {available_books}")
-            print(f"Issued Books         : {issued_books}")
-            print(f"Total Members        : {total_members}")
-            print(f"Total Transactions   : {total_transactions}")
-
-            print("\n=====Library insights=====")
-            print(f"Most Borrowed Book   : {most_borrowed_book}")
-            print(f"Popular Category     : {popular_category}")
-            print(f"Popular Author       : {popular_author}")
-
-            print(f"Overdue Books        : {overdue_counts}")   
-            print(f"Total Fine Collected : ${total_fine}")
-
-            if popular_category != "N/A":
-                print(
-                f"\nInsight: {popular_category} "
-                f"is currently the most popular category."
-            )
-
-            print("=" * 45)
+        print(f"\nTotal Books          : {len(self.books)}")
+        print(f"Available Books      : {available_books}")
+        print(f"Issued Books         : {issued_books}")
+        print(f"Total Members        : {len(self.members)}")
+        print(f"Total Transactions   : {len(transactions)}")
+        print("\n===== Library Insights =====")
+        print(f"Most Borrowed Book   : {most_borrowed_book}")
+        print(f"Popular Category     : {popular_category}")
+        print(f"Popular Author       : {popular_author}")
+        print(f"Overdue Books        : {overdue_count}")
+        print(f"Total Fine Collected : {total_fine} Tk")
+        print("=" * 45)
 
 
     def log_activity(self, message):
@@ -1056,7 +945,7 @@ class Library:
     }
 
         try:
-            with open("activity_log.json", "r") as file:
+            with open(DATA_DIR / "activity_log.json", "r") as file:
                 logs = json.load(file)
 
         except (FileNotFoundError, json.JSONDecodeError):
@@ -1064,14 +953,14 @@ class Library:
 
         logs.append(log_entry)
 
-        with open("activity_log.json", "w") as file:
+        with open(DATA_DIR / "activity_log.json", "w") as file:
             json.dump(logs, file, indent=4)
 
     def view_activity_log(self):
         print("\n===== Activity Log =====")
 
         try:
-            with open("activity_log.json", "r") as file:
+            with open(DATA_DIR / "activity_log.json", "r") as file:
                 activity_log = json.load(file)
 
         except (FileNotFoundError, json.JSONDecodeError):

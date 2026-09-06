@@ -4,9 +4,17 @@ class Book:
         self.title = title
         self.author = author
         self.category = category
-        self.availability = True  
+        self.available = True
         self.issued_to = None
         self.issue_date = None
+
+    @property
+    def availability(self):
+        return self.available
+
+    @availability.setter
+    def availability(self, value):
+        self.available = bool(value)
 
     def display_book(self):
 
@@ -28,7 +36,7 @@ class Book:
             "title": self.title,
             "author": self.author,
             "category": self.category,
-            "availability": self.availability,
+            "available": self.available,
             "issued_to": self.issued_to,
             "issue_date": self.issue_date
         }
